@@ -46,20 +46,15 @@ RUN set -x \
 #   - Use plain npm (flat real-file node_modules) so the later standalone
 #     overlay doesn't break ESM resolution like:
 #       Cannot find package '/app/node_modules/semver/index.js'.
-#   - Only install what the Next.js standalone bundle does NOT already ship.
-#     The standalone (output:'standalone' in next.config.ts) already traces
-#     and bundles @prisma/client + @prisma/adapter-pg + their transitive
-#     `pg` package. If we also npm-install @prisma/adapter-pg here, /app/
-#     node_modules/pg becomes a real directory while the standalone copy
-#     emits `pg` as a symlink/file, and BuildKit fails with:
-#       "cannot replace to directory ... node_modules/pg with file".
-#   - We DO still need the `prisma` CLI here, because check-db.js runs
-#     `prisma migrate deploy` via execSync and the standalone bundle does
-#     not contain CLIs.
+#   - Only install lightweight utilities locally. Prisma CLI is installed
+#     globally (-g) so its heavy transitive deps (including react) land in
+#     /usr/local/lib/node_modules/ instead of /app/node_modules/, avoiding
+#     BuildKit overlayfs "cannot replace to directory ... with file" errors
+#     when the Next.js standalone bundle overlays /app/node_modules/.
 RUN echo '{"name":"umami-runner","private":true,"version":"0.0.0"}' > package.json \
     && npm install --no-audit --no-fund --omit=dev --ignore-scripts \
         npm-run-all dotenv chalk semver \
-    && npm install --no-audit --no-fund --omit=dev \
+    && npm install -g --no-audit --no-fund \
         prisma@${PRISMA_VERSION}
 
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
