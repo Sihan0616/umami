@@ -42,20 +42,25 @@ RUN set -x \
     && npm install -g pnpm@10
 
 # Script dependencies for scripts/check-db.js, scripts/update-tracker.js, etc.
-# IMPORTANT: install with plain npm so we get a flat real-file node_modules
-# (no pnpm .pnpm/ virtual store and no symlinks), and DO NOT use pnpm here:
-#   - pnpm's symlink layout breaks when the Next.js standalone bundle later
-#     overlays /app/node_modules and partially clobbers the .pnpm store,
-#     causing 'Cannot find package /app/node_modules/semver/index.js'.
-#   - pnpm-workspace.yaml's `packages: ['**']` glob makes pnpm misinterpret
-#     subdirs under /app as workspaces in this stage.
+# IMPORTANT:
+#   - Use plain npm (flat real-file node_modules) so the later standalone
+#     overlay doesn't break ESM resolution like:
+#       Cannot find package '/app/node_modules/semver/index.js'.
+#   - Only install what the Next.js standalone bundle does NOT already ship.
+#     The standalone (output:'standalone' in next.config.ts) already traces
+#     and bundles @prisma/client + @prisma/adapter-pg + their transitive
+#     `pg` package. If we also npm-install @prisma/adapter-pg here, /app/
+#     node_modules/pg becomes a real directory while the standalone copy
+#     emits `pg` as a symlink/file, and BuildKit fails with:
+#       "cannot replace to directory ... node_modules/pg with file".
+#   - We DO still need the `prisma` CLI here, because check-db.js runs
+#     `prisma migrate deploy` via execSync and the standalone bundle does
+#     not contain CLIs.
 RUN echo '{"name":"umami-runner","private":true,"version":"0.0.0"}' > package.json \
     && npm install --no-audit --no-fund --omit=dev --ignore-scripts \
         npm-run-all dotenv chalk semver \
     && npm install --no-audit --no-fund --omit=dev \
-        prisma@${PRISMA_VERSION} \
-        @prisma/client@${PRISMA_VERSION} \
-        @prisma/adapter-pg@${PRISMA_VERSION}
+        prisma@${PRISMA_VERSION}
 
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 COPY --from=builder /app/prisma ./prisma
