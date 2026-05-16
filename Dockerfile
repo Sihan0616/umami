@@ -41,11 +41,21 @@ RUN set -x \
     && apk add --no-cache curl \
     && npm install -g pnpm@10
 
-# Script dependencies
-RUN pnpm --allow-build='@prisma/engines' --allow-build='prisma' add npm-run-all dotenv chalk semver \
-    prisma@${PRISMA_VERSION} \
-    @prisma/client@${PRISMA_VERSION} \
-    @prisma/adapter-pg@${PRISMA_VERSION}
+# Script dependencies for scripts/check-db.js, scripts/update-tracker.js, etc.
+# IMPORTANT: install with plain npm so we get a flat real-file node_modules
+# (no pnpm .pnpm/ virtual store and no symlinks), and DO NOT use pnpm here:
+#   - pnpm's symlink layout breaks when the Next.js standalone bundle later
+#     overlays /app/node_modules and partially clobbers the .pnpm store,
+#     causing 'Cannot find package /app/node_modules/semver/index.js'.
+#   - pnpm-workspace.yaml's `packages: ['**']` glob makes pnpm misinterpret
+#     subdirs under /app as workspaces in this stage.
+RUN echo '{"name":"umami-runner","private":true,"version":"0.0.0"}' > package.json \
+    && npm install --no-audit --no-fund --omit=dev --ignore-scripts \
+        npm-run-all dotenv chalk semver \
+    && npm install --no-audit --no-fund --omit=dev \
+        prisma@${PRISMA_VERSION} \
+        @prisma/client@${PRISMA_VERSION} \
+        @prisma/adapter-pg@${PRISMA_VERSION}
 
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 COPY --from=builder /app/prisma ./prisma
