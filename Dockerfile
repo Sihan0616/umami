@@ -28,7 +28,7 @@ RUN npm run build-docker
 FROM node:${NODE_IMAGE_VERSION} AS runner
 WORKDIR /app
 
-ARG PRISMA_VERSION="7.3.0"
+ARG PRISMA_VERSION="7.6.0"
 ARG NODE_OPTIONS
 
 ENV NODE_ENV=production
@@ -42,7 +42,7 @@ RUN set -x \
     && npm install -g pnpm
 
 # Script dependencies
-RUN pnpm --allow-build='@prisma/engines' add npm-run-all dotenv chalk semver \
+RUN pnpm --allow-build='@prisma/engines' --allow-build='prisma' add npm-run-all dotenv chalk semver \
     prisma@${PRISMA_VERSION} \
     @prisma/client@${PRISMA_VERSION} \
     @prisma/adapter-pg@${PRISMA_VERSION}
