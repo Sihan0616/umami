@@ -41,21 +41,11 @@ RUN set -x \
     && apk add --no-cache curl \
     && npm install -g pnpm@10
 
-# Script dependencies for scripts/check-db.js, scripts/update-tracker.js, etc.
-# IMPORTANT:
-#   - Use plain npm (flat real-file node_modules) so the later standalone
-#     overlay doesn't break ESM resolution like:
-#       Cannot find package '/app/node_modules/semver/index.js'.
-#   - Only install lightweight utilities locally. Prisma CLI is installed
-#     globally (-g) so its heavy transitive deps (including react) land in
-#     /usr/local/lib/node_modules/ instead of /app/node_modules/, avoiding
-#     BuildKit overlayfs "cannot replace to directory ... with file" errors
-#     when the Next.js standalone bundle overlays /app/node_modules/.
-RUN echo '{"name":"umami-runner","private":true,"version":"0.0.0"}' > package.json \
-    && npm install --no-audit --no-fund --omit=dev --ignore-scripts \
-        npm-run-all dotenv chalk semver \
-    && npm install -g --no-audit --no-fund \
-        prisma@${PRISMA_VERSION}
+# Script dependencies
+RUN pnpm --allow-build='@prisma/engines' --allow-build='prisma' add npm-run-all dotenv chalk semver \
+    prisma@${PRISMA_VERSION} \
+    @prisma/client@${PRISMA_VERSION} \
+    @prisma/adapter-pg@${PRISMA_VERSION}
 
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 COPY --from=builder /app/prisma ./prisma
